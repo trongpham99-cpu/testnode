@@ -1,44 +1,46 @@
 version: 2.1
 
-jobs:
-  build:
+executors:
+  node-executor:
     docker:
-      - image: circleci/node:latest
+      - image: circleci/node:14
+
+jobs:
+  build-and-deploy:
+    executor: node-executor
     steps:
       - checkout
       - run:
           name: Install Dependencies
           command: npm install
       - run:
-          name: Test Application
+          name: Run Tests
           command: npm test
-
-  deploy:
-    docker:
-      - image: circleci/node:latest
-    steps:
-      - checkout
       - run:
-          name: Install SSH Key
-          command: |
-            mkdir -p ~/.ssh
-            echo "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
+          name: Build Application
+          command: npm run build
+      - add_ssh_keys:
+          fingerprints:
+            - "<<fingerprint_of_your_ssh_key>>"
       - run:
           name: Deploy to EC2
           command: |
-            ssh -o StrictHostKeyChecking=no ubuntu@ec2-18-140-51-185.ap-southeast-1.compute.amazonaws.com << EOF
-              cd /var/www/my-node-app
-              git pull origin main
-              npm install
-              pm2 restart all || pm2 start index.js --name my-node-app
+            ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP << 'EOF'
+              cd /var/www/node-app || mkdir -p /var/www/node-app && cd /var/www/node-app
+              sudo rm -rf *
+              exit
+            EOF
+            scp -o StrictHostKeyChecking=no -r ./* $EC2_USER@$EC2_IP:/var/www/node-app
+            ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_IP << 'EOF'
+              cd /var/www/node-app
+              npm install --production
+              pm2 stop all || true
+              pm2 start server.js
+              exit
             EOF
 
 workflows:
   version: 2
-  build-and-deploy:
+  build-and-deploy-workflow:
     jobs:
-      - build
-      - deploy:
-          requires:
-            - build
+      - build-and-deploy
