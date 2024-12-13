@@ -10,7 +10,7 @@ jobs:
           name: Install Dependencies
           command: npm install
       - run:
-          name: Test
+          name: Test Application
           command: npm test
 
   deploy:
@@ -22,16 +22,16 @@ jobs:
           name: Install SSH Key
           command: |
             mkdir -p ~/.ssh
-            echo "$EC2_SSH_KEY" > ~/.ssh/id_rsa
+            echo "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
             chmod 600 ~/.ssh/id_rsa
       - run:
           name: Deploy to EC2
           command: |
-            ssh -o StrictHostKeyChecking=no ec2-user@18.140.51.185 << 'EOF'
-            cd /var/www/my-app
-            git pull origin main
-            npm install
-            pm2 restart all
+            ssh -o StrictHostKeyChecking=no ubuntu@ec2-18-140-51-185.ap-southeast-1.compute.amazonaws.com << EOF
+              cd /var/www/my-node-app
+              git pull origin main
+              npm install
+              pm2 restart all || pm2 start index.js --name my-node-app
             EOF
 
 workflows:
